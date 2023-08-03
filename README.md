@@ -1547,6 +1547,7 @@ On the other hand, planning around BASE limitations can sometimes be a major dis
 
 CAP theorem states that a distributed system can deliver only two of the three desired characteristics Consistency, Availability, and Partition tolerance (CAP).
 
+[CAP theorem Video](https://www.youtube.com/watch?v=8UryASGBiR4)
 ![cap-theorem](https://raw.githubusercontent.com/karanpratapsingh/portfolio/master/public/static/courses/system-design/chapter-II/cap-theorem/cap-theorem.png)
 
 Let's take a detailed look at the three distributed system characteristics to which the CAP theorem refers.
