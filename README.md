@@ -1419,14 +1419,16 @@ For a table to be in the first normal form (1NF), it should follow the following
 For a table to be in the second normal form (2NF), it should follow the following rules:
 
 - Satisfies the first normal form (1NF).
-- Should not have any partial dependency.
+- Should not have any partial dependency. i.e Every non-key attribute must depend on the entire primary key.
+  Imaging a table with attributes {'PlayerId', 'ItemType', 'PlayerRating'} whose primary key is {'PlayerId', 'ItemType'} and there is non-key attribute called 'PlayerRating', this column depends only on 'PlayedId' and has nothing to do with 'ItemType' attribute. This has to be avoided.
 
 **3NF**
 
 For a table to be in the third normal form (3NF), it should follow the following rules:
 
 - Satisfies the second normal form (2NF).
-- Transitive functional dependencies are not permitted.
+- Transitive functional dependencies are not permitted. i.e Every non-key attribute must depend on the key, the whole key, nothing but the key. No indirect dependencies are allowed
+  Imagine a table with attributes {'PlayerId', 'PlayerRating', 'PlayerSkillLevel'} whose primary-key is {'PlayerId'}, 'PlayerRating' is dependent on 'PlayerId' but only indirectly via 'PlayerSkillLevel'. In fact its more dependent on 'PlayerSkillLevel' than 'PlayerId'.
 
 **BCNF**
 
