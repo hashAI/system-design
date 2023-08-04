@@ -1546,6 +1546,7 @@ On the other hand, planning around BASE limitations can sometimes be a major dis
 # CAP Theorem
 
 CAP theorem states that a distributed system can deliver only two of the three desired characteristics Consistency, Availability, and Partition tolerance (CAP).
+It means that whenever a Network Partition (failure) happens in a distributed system, we can have only one of these characteristics - Consistency OR Availibility. We cannot have both.
 
 [CAP theorem Video](https://www.youtube.com/watch?v=8UryASGBiR4)
 ![cap-theorem](https://raw.githubusercontent.com/karanpratapsingh/portfolio/master/public/static/courses/system-design/chapter-II/cap-theorem/cap-theorem.png)
@@ -1588,7 +1589,13 @@ An AP database delivers availability and partition tolerance at the expense of c
 
 # PACELC Theorem
 
-The PACELC theorem is an extension of the CAP theorem. The CAP theorem states that in the case of network partitioning (P) in a distributed system, one has to choose between Availability (A) and Consistency (C).
+The PACELC theorem is an extension of the CAP theorem. PACELC states that -
+
+In the case of network partitioning (P) in a distributed system, one has to choose between Availability (A) and Consistency (C) (CAP theorem)
+
+Else
+
+In cases where there is no network partitioning (P) in a distributed system, one has to choose between Latency (L) and consistency (C). Because if the focus is on making system consistent while entertaining requests, latency will go higher. But if one chooses to have eventual consistency then latency will stay low.
 
 PACELC extends the CAP theorem by introducing latency (L) as an additional attribute of a distributed system. The theorem states that else (E), even when the system is running normally in the absence of partitions, one has to choose between latency (L) and consistency (C).
 
