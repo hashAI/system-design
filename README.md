@@ -5720,11 +5720,9 @@ In distributed systems, many tasks require a single node to coordinate work acro
 
 ## Why Do We Need Leader Election?
 
-**Single point of coordination:** When multiple nodes could perform the same action, you need exactly one to do it. Examples: assigning partitions to consumers in Kafka, processing a shard in a database, or making configuration decisions.
-
-**Avoiding split brain:** Without a clear leader, two nodes might both believe they're in charge and make conflicting decisions—the infamous split brain scenario.
-
-**Simplifying failure recovery:** When the leader fails, followers can detect it and elect a new leader. The system has a clear recovery path.
+- **Single point of coordination:** When multiple nodes could perform the same action, you need exactly one to do it. Examples: assigning partitions to consumers in Kafka, processing a shard in a database, or making configuration decisions.
+- **Avoiding split brain:** Without a clear leader, two nodes might both believe they're in charge and make conflicting decisions—the infamous split brain scenario.
+- **Simplifying failure recovery:** When the leader fails, followers can detect it and elect a new leader. The system has a clear recovery path.
 
 ## How Leader Election Works in Practice
 
@@ -5758,13 +5756,17 @@ The controller creates an ephemeral znode `/controller`. The first broker to cre
 
 When a node notices the leader is unresponsive, it holds an "election" by sending election messages to nodes with higher IDs. If no one responds, it declares itself leader. Higher-ID nodes can "bully" lower-ID ones out of leadership.
 
-**Pros:** Simple, deterministic (highest ID wins). **Cons:** Many messages when leader fails, not used in production systems.
+**Pros:** Simple, deterministic (highest ID wins).
+
+**Cons:** Many messages when leader fails, not used in production systems.
 
 ### Ring Algorithm
 
 Nodes are arranged in a logical ring. When a node detects leader failure, it sends an election message to the next node. The message collects node IDs. When it returns to the initiator, the highest ID becomes leader.
 
-**Pros:** O(n) messages. **Cons:** Single point of failure in the ring, slow.
+**Pros:** O(n) messages.
+
+**Cons:** Single point of failure in the ring, slow.
 
 ### Raft / Paxos (Production Standard)
 
@@ -5772,11 +5774,9 @@ Production systems use consensus-based election. The leader is whoever wins the 
 
 ## Practical Considerations
 
-**Session expiration:** In ZooKeeper, if a node loses its session (e.g., GC pause, network blip), its ephemeral znodes are deleted. The node might not be dead—it could be a false positive. Systems must handle "I was leader, now I'm not" gracefully.
-
-**Fencing tokens:** When a leader is deposed, the old leader might not know immediately. To prevent it from making dangerous decisions, use **fencing tokens**—monotonically increasing numbers. The new leader gets a higher token; the old leader's requests are rejected if they use a stale token. Used in HDFS, Google Chubby.
-
-**Leadership lease:** Some systems use a time-based lease. The leader holds a lease; as long as it's valid, it can act. Renew before expiry. If the leader can't renew (e.g., partitioned), the lease expires and others can take over. Must be conservative with lease duration to account for clock skew.
+- **Session expiration:** In ZooKeeper, if a node loses its session (e.g., GC pause, network blip), its ephemeral znodes are deleted. The node might not be dead—it could be a false positive. Systems must handle "I was leader, now I'm not" gracefully.
+- **Fencing tokens:** When a leader is deposed, the old leader might not know immediately. To prevent it from making dangerous decisions, use **fencing tokens**—monotonically increasing numbers. The new leader gets a higher token; the old leader's requests are rejected if they use a stale token. Used in HDFS, Google Chubby.
+- **Leadership lease:** Some systems use a time-based lease. The leader holds a lease; as long as it's valid, it can act. Renew before expiry. If the leader can't renew (e.g., partitioned), the lease expires and others can take over. Must be conservative with lease duration to account for clock skew.
 
 ## Real-World Examples
 
@@ -5842,19 +5842,18 @@ Raft divides time into **terms**. Each term has at most one leader. Terms are mo
 
 ## Safety
 
-**Election safety:** At most one leader per term. **Log matching:** If two logs have the same index and term, they have the same command and all preceding entries. **Leader completeness:** A committed entry will appear in future leaders' logs. **State machine safety:** A node applies a log entry only if all prior entries are applied.
+- **Election safety:** At most one leader per term.
+- **Log matching:** If two logs have the same index and term, they have the same command and all preceding entries.
+- **Leader completeness:** A committed entry will appear in future leaders' logs.
+- **State machine safety:** A node applies a log entry only if all prior entries are applied.
 
 ## Practical Raft Details
 
-**Log compaction (snapshots):** Logs grow unbounded. Raft supports snapshots: replace prefix of log with a snapshot. Leader can send snapshot to lagging followers. Used in etcd, Consul.
-
-**Membership changes:** Adding/removing nodes is tricky. Single-node change (Cold) or joint consensus (Raft paper) can be used. etcd uses a simpler approach with careful sequencing.
-
-**Read-only requests:** Leader can serve reads from its log. But if it was partitioned and deposed, it might serve stale data. For linearizable reads, leader must verify it's still leader (e.g., heartbeat round) before responding. etcd supports this.
-
-**Batching:** Leaders batch multiple entries in one AppendEntries RPC for throughput.
-
-**Pipeline:** Leader doesn't wait for one AppendEntries to complete before sending the next; pipelines for higher throughput.
+- **Log compaction (snapshots):** Logs grow unbounded. Raft supports snapshots: replace prefix of log with a snapshot. Leader can send snapshot to lagging followers. Used in etcd, Consul.
+- **Membership changes:** Adding/removing nodes is tricky. Single-node change (Cold) or joint consensus (Raft paper) can be used. etcd uses a simpler approach with careful sequencing.
+- **Read-only requests:** Leader can serve reads from its log. But if it was partitioned and deposed, it might serve stale data. For linearizable reads, leader must verify it's still leader (e.g., heartbeat round) before responding. etcd supports this.
+- **Batching:** Leaders batch multiple entries in one AppendEntries RPC for throughput.
+- **Pipeline:** Leader doesn't wait for one AppendEntries to complete before sending the next; pipelines for higher throughput.
 
 ## Raft in Production: etcd
 
@@ -5867,7 +5866,11 @@ Raft divides time into **terms**. Each term has at most one leader. Terms are mo
 
 ## Raft Implementation Deep Dive
 
-**Log structure:** Each entry has term, index, command. Index is monotonically increasing. Term changes on election. **Commit index advancement:** Leader only advances commit index when entry is on majority. It includes prevLogIndex and prevLogTerm in AppendEntries—follower rejects if its log doesn't match, forcing leader to backtrack. **Safety argument:** A committed entry must be in the leader's log. A candidate only wins if it has the most up-to-date log (per Raft's election restriction). So committed entries are never lost. **Leadership transfer:** Some systems support explicit leadership transfer (e.g., for maintenance). Leader steps down, triggers election. Ensures clean handoff. **Pre-vote:** Prevents disrupted leader from causing unnecessary elections. Candidate first does a "pre-vote" round—only becomes candidate if majority would vote. Reduces elections when partitioned node returns.
+- **Log structure:** Each entry has term, index, command. Index is monotonically increasing. Term changes on election.
+- **Commit index advancement:** Leader only advances commit index when entry is on majority. It includes prevLogIndex and prevLogTerm in AppendEntries—follower rejects if its log doesn't match, forcing leader to backtrack.
+- **Safety argument:** A committed entry must be in the leader's log. A candidate only wins if it has the most up-to-date log (per Raft's election restriction). So committed entries are never lost.
+- **Leadership transfer:** Some systems support explicit leadership transfer (e.g., for maintenance). Leader steps down, triggers election. Ensures clean handoff.
+- **Pre-vote:** Prevents disrupted leader from causing unnecessary elections. Candidate first does a "pre-vote" round—only becomes candidate if majority would vote. Reduces elections when partitioned node returns.
 
 ## When to Use Raft
 
@@ -5892,9 +5895,9 @@ A node can play multiple roles. The algorithm ensures that once a value is chose
 ## Simplified Flow
 
 1. **Prepare phase:** Proposer picks proposal number N, sends Prepare(N) to acceptors.
-2. **Promise:** Acceptor promises not to accept proposals &lt; N. If it already accepted a value, it includes that in the promise.
+2. **Promise:** Acceptor promises not to accept proposals `< N`. If it already accepted a value, it includes that in the promise.
 3. **Accept phase:** Proposer sends Accept(N, V) where V is the highest-value from promises, or its own if none.
-4. **Accepted:** Acceptor accepts if it hasn't promised any number &gt; N.
+4. **Accepted:** Acceptor accepts if it hasn't promised any number `> N`.
 5. **Learn:** Once majority accepts, value is chosen. Learners are informed.
 
 ## Why Raft Won
@@ -5920,7 +5923,7 @@ A network partition isolates nodes. Each partition might have a majority (or bel
 
 **Quorum** means a majority: (N/2 + 1) of N nodes. Key insight: any two majorities overlap in at least one node. So at most one partition can have a majority. Only that partition can make progress.
 
-**Write quorum (W) and read quorum (R):** In Dynamo-style systems, you configure W and R. For strong consistency, W + R &gt; N. Example: N=3, W=2, R=2. Each read sees at least one node that participated in the write.
+**Write quorum (W) and read quorum (R):** In Dynamo-style systems, you configure W and R. For strong consistency, `W + R > N`. Example: N=3, W=2, R=2. Each read sees at least one node that participated in the write.
 
 ## Preventing Split Brain in Practice
 
@@ -5942,25 +5945,18 @@ Coordination services provide primitives for distributed coordination: locks, le
 
 ## What ZooKeeper Provides
 
-**Data model:** Hierarchical namespace (like a file system). Nodes are **znodes**. Types: persistent, ephemeral (deleted when session ends), sequential (append monotonic counter to name).
-
-**Operations:** create, delete, exists, getData, setData, getChildren. All reads go to local replica (possibly stale). Writes go through leader and are linearizable.
-
-**Watches:** Client sets a watch on a znode. When that znode changes (or children change), ZooKeeper sends a one-time notification. Client re-reads and can set a new watch.
-
-**Sessions:** Client has a session. If client doesn't send heartbeats, session expires. All ephemeral znodes are deleted. Used for failure detection.
+- **Data model:** Hierarchical namespace (like a file system). Nodes are **znodes**. Types: persistent, ephemeral (deleted when session ends), sequential (append monotonic counter to name).
+- **Operations:** create, delete, exists, getData, setData, getChildren. All reads go to local replica (possibly stale). Writes go through leader and are linearizable.
+- **Watches:** Client sets a watch on a znode. When that znode changes (or children change), ZooKeeper sends a one-time notification. Client re-reads and can set a new watch.
+- **Sessions:** Client has a session. If client doesn't send heartbeats, session expires. All ephemeral znodes are deleted. Used for failure detection.
 
 ## Typical Use Cases
 
-**Leader election:** Ephemeral sequential znodes, as described earlier.
-
-**Distributed lock:** Create ephemeral znode for lock. Whoever creates it holds the lock. On delete, others contend. Use sequential znodes for fairness.
-
-**Configuration:** Store config in a znode. Clients watch it. On change, they get notified and reload.
-
-**Service discovery:** Register service instances as ephemeral znodes under a path. When instance dies, znode disappears. Clients watch the parent and get list of live instances.
-
-**Kafka (pre-KRaft):** Kafka used ZooKeeper for controller election, cluster metadata, topic config, consumer group state. KRaft removes ZooKeeper dependency.
+- **Leader election:** Ephemeral sequential znodes, as described earlier.
+- **Distributed lock:** Create ephemeral znode for lock. Whoever creates it holds the lock. On delete, others contend. Use sequential znodes for fairness.
+- **Configuration:** Store config in a znode. Clients watch it. On change, they get notified and reload.
+- **Service discovery:** Register service instances as ephemeral znodes under a path. When instance dies, znode disappears. Clients watch the parent and get list of live instances.
+- **Kafka (pre-KRaft):** Kafka used ZooKeeper for controller election, cluster metadata, topic config, consumer group state. KRaft removes ZooKeeper dependency.
 
 ## etcd and Consul
 
@@ -5976,13 +5972,10 @@ In a single machine, we have a single clock. Ordering events is straightforward.
 
 ## Why Physical Clocks Fail
 
-**Clock skew:** Different nodes' clocks run at different rates. A clock might gain or lose milliseconds per day. Even with NTP, skew of tens to hundreds of milliseconds is common.
-
-**Clock drift:** Clocks can run fast or slow. NTP corrects by stepping or slewing, but corrections aren't instant. During correction, ordering can be wrong.
-
-**Monotonicity:** System clocks can go backward (NTP correction, admin change). Using wall-clock time for ordering is dangerous—"later" timestamp might not mean "later" event.
-
-**Uncertainty:** We never know the exact time. There's always uncertainty. Systems like Spanner explicitly model this.
+- **Clock skew:** Different nodes' clocks run at different rates. A clock might gain or lose milliseconds per day. Even with NTP, skew of tens to hundreds of milliseconds is common.
+- **Clock drift:** Clocks can run fast or slow. NTP corrects by stepping or slewing, but corrections aren't instant. During correction, ordering can be wrong.
+- **Monotonicity:** System clocks can go backward (NTP correction, admin change). Using wall-clock time for ordering is dangerous—"later" timestamp might not mean "later" event.
+- **Uncertainty:** We never know the exact time. There's always uncertainty. Systems like Spanner explicitly model this.
 
 ## The Happens-Before Relation
 
@@ -5992,15 +5985,13 @@ Happens-before captures causality without physical time. If A→B, then A causal
 
 ## Why This Matters for Systems
 
-**Conflict detection:** Two writes to the same key are concurrent if neither happens-before the other. We need to detect this for conflict resolution (last-write-wins, merge, CRDTs).
-
-**Replication:** When replicating events, we must preserve happens-before. If A→B, replica must apply A before B.
-
-**Debugging:** Understanding causal order helps debug distributed systems. "What caused this?" requires tracing causality.
+- **Conflict detection:** Two writes to the same key are concurrent if neither happens-before the other. We need to detect this for conflict resolution (last-write-wins, merge, CRDTs).
+- **Replication:** When replicating events, we must preserve happens-before. If A→B, replica must apply A before B.
+- **Debugging:** Understanding causal order helps debug distributed systems. "What caused this?" requires tracing causality.
 
 # Logical Clocks (Lamport Timestamps)
 
-[Lamport timestamps](https://lamport.azurewebsites.net/pubs/time-clocks.pdf) assign a logical clock value to each event. If A→B, then L(A) &lt; L(B). The reverse is not true: L(A) &lt; L(B) does not imply A→B. So Lamport clocks give a total order that extends causality, but they can't distinguish concurrent events.
+[Lamport timestamps](https://lamport.azurewebsites.net/pubs/time-clocks.pdf) assign a logical clock value to each event. If A→B, then `L(A) < L(B)`. The reverse is not true: `L(A) < L(B)` does not imply A→B. So Lamport clocks give a total order that extends causality, but they can't distinguish concurrent events.
 
 ## Algorithm
 
@@ -6010,15 +6001,20 @@ Each process maintains a counter C, initially 0.
 - **Send message:** Increment C, send (message, C) with timestamp.
 - **Receive message:** Set C = max(local C, received timestamp) + 1. Assign timestamp to receive event.
 
-This ensures: if A→B, then L(A) &lt; L(B).
+This ensures: if A→B, then `L(A) < L(B)`.
 
 ## Properties
 
-**Consistency:** Causality is preserved. **Uniqueness:** Each event gets a unique timestamp (include process ID to break ties). **Limitation:** L(A) &lt; L(B) does not mean A→B. Two concurrent events might have different timestamps; we can't tell they're concurrent from timestamps alone.
+- **Consistency:** Causality is preserved.
+- **Uniqueness:** Each event gets a unique timestamp (include process ID to break ties).
+- **Limitation:** `L(A) < L(B)` does not mean A→B. Two concurrent events might have different timestamps; we can't tell they're concurrent from timestamps alone.
 
 ## Use Cases
 
-**Distributed debugging:** Order log entries across nodes for analysis. **Distributed locking:** Use Lamport timestamp as lock version; detect stale lock requests. **Replication:** Order operations for replay. **Kafka:** Offsets provide a total order per partition; across partitions, causality isn't preserved (by design).
+- **Distributed debugging:** Order log entries across nodes for analysis.
+- **Distributed locking:** Use Lamport timestamp as lock version; detect stale lock requests.
+- **Replication:** Order operations for replay.
+- **Kafka:** Offsets provide a total order per partition; across partitions, causality isn't preserved (by design).
 
 # Vector Clocks
 
@@ -6034,7 +6030,7 @@ This ensures: if A→B, then L(A) &lt; L(B).
 
 - **V = W** iff V[j] = W[j] for all j.
 - **V ≤ W** iff V[j] ≤ W[j] for all j.
-- **V &lt; W** iff V ≤ W and V ≠ W.
+- **V < W** iff V ≤ W and V ≠ W.
 - **V concurrent with W** iff neither V ≤ W nor W ≤ V.
 
 **Key property:** V(A) ≤ V(B) iff A→B. And: V(A) concurrent with V(B) iff A and B are concurrent. So we can detect concurrency from vector clocks alone.
@@ -6049,11 +6045,15 @@ This ensures: if A→B, then L(A) &lt; L(B).
 
 ## Vector Clock Implementation Details
 
-**Pruning:** In large systems, N can be thousands. Store only non-zero entries (sparse vector). Or use dotted version vectors—only track replicas that have written. **Garbage collection:** When replica A has V and knows all replicas have seen up to V[A], it can prune old entries. Complex; HLC avoids this. **Conflict resolution:** When V(A) || V(B) (concurrent), system must resolve. Options: last-write-wins (pick one), merge (application-specific), present both to user. **Riak:** Uses vector clocks. On concurrent read, returns siblings. Application merges or picks. **Dynamo:** Original paper used vector clocks. Later moved to dotted version vectors for efficiency.
+- **Pruning:** In large systems, N can be thousands. Store only non-zero entries (sparse vector). Or use dotted version vectors—only track replicas that have written.
+- **Garbage collection:** When replica A has V and knows all replicas have seen up to V[A], it can prune old entries. Complex; HLC avoids this.
+- **Conflict resolution:** When V(A) || V(B) (concurrent), system must resolve. Options: last-write-wins (pick one), merge (application-specific), present both to user.
+- **Riak:** Uses vector clocks. On concurrent read, returns siblings. Application merges or picks.
+- **Dynamo:** Original paper used vector clocks. Later moved to dotted version vectors for efficiency.
 
 # Hybrid Logical Clocks (HLC)
 
-[Hybrid Logical Clocks (HLC)](https://cse.buffalo.edu/tech-reports/2014-04.pdf) combine physical time and logical time. HLC provides: (1) timestamps close to physical time (useful for analytics, TTL), (2) causality preservation (if A→B, HLC(A) &lt; HLC(B)), (3) bounded drift from physical time.
+[Hybrid Logical Clocks (HLC)](https://cse.buffalo.edu/tech-reports/2014-04.pdf) combine physical time and logical time. HLC provides: (1) timestamps close to physical time (useful for analytics, TTL), (2) causality preservation (if A→B, `HLC(A) < HLC(B)`), (3) bounded drift from physical time.
 
 ## Structure
 
@@ -6108,11 +6108,9 @@ We can't distinguish "node is dead" from "node is slow" or "network is partition
 
 ## Heartbeat-Based Detection
 
-**Simple heartbeat:** Node A sends "I'm alive" to B every interval. B suspects A is dead if no message for K intervals. **Trade-off:** Short interval = fast detection, more traffic. Long interval = less traffic, slower detection.
-
-**Adaptive heartbeats:** Adjust interval based on observed latency. In stable conditions, increase interval; when variance is high, decrease it. Used in some production systems.
-
-**Phi accrual failure detector:** Used in Cassandra. Instead of binary "alive/dead," it outputs a suspicion level (phi). Higher phi = more likely dead. Applications set a threshold. This reduces false positives when network is flaky. Phi is computed from the distribution of inter-arrival times of heartbeats. If arrivals are regular, phi stays low. If we miss heartbeats (network blip), phi increases. Threshold of 8 often means "likely dead." Adaptive to network conditions—in flaky networks, same timeout might give more false positives with simple detector; phi accrual adjusts.
+- **Simple heartbeat:** Node A sends "I'm alive" to B every interval. B suspects A is dead if no message for K intervals. Trade-off: short interval = fast detection, more traffic; long interval = less traffic, slower detection.
+- **Adaptive heartbeats:** Adjust interval based on observed latency. In stable conditions, increase interval; when variance is high, decrease it. Used in some production systems.
+- **Phi accrual failure detector:** Used in Cassandra. Instead of binary "alive/dead," it outputs a suspicion level (phi). Higher phi = more likely dead. Applications set a threshold. This reduces false positives when network is flaky. Phi is computed from the distribution of inter-arrival times of heartbeats. If arrivals are regular, phi stays low. If we miss heartbeats (network blip), phi increases. Threshold of 8 often means "likely dead." Adaptive to network conditions—in flaky networks, same timeout might give more false positives with simple detector; phi accrual adjusts.
 
 ## Gossip-Style Failure Detection
 
@@ -6122,11 +6120,9 @@ In gossip protocols, nodes periodically exchange membership and failure informat
 
 ## Timeouts in Production
 
-**Session timeout (ZooKeeper):** Client must send heartbeats within session timeout. Default 30s. If not, session expires. Ephemeral znodes deleted. Tune based on network: too short = false expirations; too long = slow failure detection.
-
-**Raft election timeout:** 150–300ms typical. Must be >> RTT. If too short, unnecessary elections. If too long, slow failover.
-
-**TCP keepalive:** Often 2 hours default—useless for failure detection. Use application-level heartbeats.
+- **Session timeout (ZooKeeper):** Client must send heartbeats within session timeout. Default 30s. If not, session expires. Ephemeral znodes deleted. Tune based on network: too short = false expirations; too long = slow failure detection.
+- **Raft election timeout:** 150–300ms typical. Must be >> RTT. If too short, unnecessary elections. If too long, slow failover.
+- **TCP keepalive:** Often 2 hours default—useless for failure detection. Use application-level heartbeats.
 
 ## Trade-offs Summary
 
@@ -6145,31 +6141,32 @@ Gossip (epidemic) protocols disseminate information by having each node periodic
 
 Each node maintains state (e.g., membership list, versioned data). Periodically (e.g., every second), each node picks one or more random peers and exchanges state. On receive, node merges: typically "newer wins" (compare version numbers or timestamps). Over time, all nodes converge to the same state.
 
-**Fanout:** Each node contacts f peers per round (e.g., f=3). Information spreads in O(log N) rounds. **Anti-entropy:** Variant where nodes reconcile entire state; stronger guarantee but more expensive.
+- **Fanout:** Each node contacts f peers per round (e.g., f=3). Information spreads in O(log N) rounds.
+- **Anti-entropy:** Variant where nodes reconcile entire state; stronger guarantee but more expensive.
 
 ## Use Cases
 
-**Membership:** Each node knows the cluster members. New nodes are added by contacting a seed; they gossip and get full membership. Dead nodes are removed when no one has heard from them.
-
-**Failure detection:** As part of membership, nodes track "last seen" and mark nodes dead after timeout. Gossip spreads this information.
-
-**Data dissemination:** Cassandra uses gossip for schema updates, cluster state. Redis Cluster uses it for slot mapping.
-
-**CRDT synchronization:** Some CRDT implementations use gossip to sync replicas.
+- **Membership:** Each node knows the cluster members. New nodes are added by contacting a seed; they gossip and get full membership. Dead nodes are removed when no one has heard from them.
+- **Failure detection:** As part of membership, nodes track "last seen" and mark nodes dead after timeout. Gossip spreads this information.
+- **Data dissemination:** Cassandra uses gossip for schema updates, cluster state. Redis Cluster uses it for slot mapping.
+- **CRDT synchronization:** Some CRDT implementations use gossip to sync replicas.
 
 ## Properties
 
-**Eventual consistency:** All nodes eventually have the same state if no new updates. **Fault tolerance:** No single point of failure. **Scalability:** Each node does O(1) work per round; total traffic O(N) per round. **Latency:** Convergence takes multiple rounds; not for real-time consistency.
+- **Eventual consistency:** All nodes eventually have the same state if no new updates.
+- **Fault tolerance:** No single point of failure.
+- **Scalability:** Each node does O(1) work per round; total traffic O(N) per round.
+- **Latency:** Convergence takes multiple rounds; not for real-time consistency.
 
 ## Implementation Details
 
-**Seeds:** New nodes need to contact at least one existing node. Seeds are configured. Once in, they learn full membership via gossip.
-
-**Generation clock:** When a node restarts, it increments a generation number. Prevents stale "I'm alive" from before restart from overwriting "I'm dead" after restart.
-
-**Digest vs full state:** To reduce payload, nodes can exchange digests (hashes) first. If different, then exchange full state. Used in some systems.
-
-**Gossip topology:** Who talks to whom? Random: each node picks random peer(s). Reduces correlation. Ring: each node has fixed neighbors. Deterministic but vulnerable to partition. Hybrid: combine both. **Cassandra:** Each node gossips with 1-3 random nodes per second. Exchanges endpoint state, schema, etc. **Failure detection in gossip:** Node A tracks "last seen" for B. If no gossip from B for N seconds, A marks B dead. A includes this in its gossip. Eventually all converge. **Seed nodes:** New node contacts seed. Seed responds with peer list. New node starts gossiping. Seeds are only for bootstrap—not special afterward.
+- **Seeds:** New nodes need to contact at least one existing node. Seeds are configured. Once in, they learn full membership via gossip.
+- **Generation clock:** When a node restarts, it increments a generation number. Prevents stale "I'm alive" from before restart from overwriting "I'm dead" after restart.
+- **Digest vs full state:** To reduce payload, nodes can exchange digests (hashes) first. If different, then exchange full state. Used in some systems.
+- **Gossip topology:** Who talks to whom? Random: each node picks random peer(s). Reduces correlation. Ring: each node has fixed neighbors. Deterministic but vulnerable to partition. Hybrid: combine both.
+- **Cassandra:** Each node gossips with 1-3 random nodes per second. Exchanges endpoint state, schema, etc.
+- **Failure detection in gossip:** Node A tracks "last seen" for B. If no gossip from B for N seconds, A marks B dead. A includes this in its gossip. Eventually all converge.
+- **Seed nodes:** New node contacts seed. Seed responds with peer list. New node starts gossiping. Seeds are only for bootstrap—not special afterward.
 
 # SWIM Protocol
 
@@ -6226,7 +6223,8 @@ Elasticsearch has `discovery.zen.minimum_master_nodes`. Set to (N/2)+1. A node w
 
 ## Consistency During Partition
 
-**CP systems:** During partition, minority partition rejects writes. Availability is sacrificed. **AP systems:** Both partitions may accept writes. Conflict resolution when partition heals. Choose based on use case.
+- **CP systems:** During partition, minority partition rejects writes. Availability is sacrificed.
+- **AP systems:** Both partitions may accept writes. Conflict resolution when partition heals. Choose based on use case.
 
 # Network Partitions in Practice
 
@@ -6234,9 +6232,14 @@ A network partition splits the cluster: some nodes can't reach others. This is a
 
 ## CAP in Practice
 
-**C (Consistency):** All nodes see the same data. **A (Availability):** Every request gets a response. **P (Partition tolerance):** System works despite partitions. CAP says you can't have all three during a partition. In practice, you choose between CP and AP.
+- **C (Consistency):** All nodes see the same data.
+- **A (Availability):** Every request gets a response.
+- **P (Partition tolerance):** System works despite partitions.
 
-**CP:** During partition, minority partition stops accepting writes (or reads). Example: etcd, ZooKeeper. **AP:** Both partitions continue. Example: Cassandra, DynamoDB (in some configurations). When partition heals, reconcile (last-write-wins, CRDTs, manual merge).
+CAP says you can't have all three during a partition. In practice, you choose between CP and AP.
+
+- **CP:** During partition, minority partition stops accepting writes (or reads). Example: etcd, ZooKeeper.
+- **AP:** Both partitions continue. Example: Cassandra, DynamoDB (in some configurations). When partition heals, reconcile (last-write-wins, CRDTs, manual merge).
 
 ## Detecting Partitions
 
@@ -6258,7 +6261,8 @@ A [Bloom filter](https://en.wikipedia.org/wiki/Bloom_filter) is a space-efficien
 
 A Bloom filter is a bit array of m bits and k hash functions. To add element x: compute h1(x), h2(x), ..., hk(x), set those bits to 1. To check membership: compute the same hashes; if all k bits are 1, "probably in set"; if any is 0, "definitely not in set."
 
-**No false negatives:** If x was added, all k bits were set. So we never say "not in set" when it is. **False positives possible:** Other elements might have set the same bits. Probability of false positive increases with load factor (n/m) and k.
+- **No false negatives:** If x was added, all k bits were set. So we never say "not in set" when it is.
+- **False positives possible:** Other elements might have set the same bits. Probability of false positive increases with load factor (n/m) and k.
 
 ## Sizing and Tuning
 
@@ -6266,25 +6270,23 @@ For n elements and desired false positive rate p: m ≈ -n ln p / (ln 2)², k �
 
 **Trade-off:** Larger m = fewer false positives, more memory. More hash functions k = fewer false positives up to a point, then more (too many 1s).
 
-**Optimal k:** The optimal number of hash functions is k = (m/n) ln 2, which minimizes false positive rate for given m and n. In practice, k=7-10 is common. **Double hashing:** Instead of k independent hashes, use h_i(x) = h1(x) + i * h2(x). Only two hash computations. Same asymptotic false positive rate. **Blocked Bloom filters:** Divide bits into blocks. Each element hashes to one block. Better cache locality. Used in some high-performance implementations.
+- **Optimal k:** The optimal number of hash functions is k = (m/n) ln 2, which minimizes false positive rate for given m and n. In practice, k=7-10 is common.
+- **Double hashing:** Instead of k independent hashes, use h_i(x) = h1(x) + i * h2(x). Only two hash computations. Same asymptotic false positive rate.
+- **Blocked Bloom filters:** Divide bits into blocks. Each element hashes to one block. Better cache locality. Used in some high-performance implementations.
 
 ## Use Cases in Production
 
-**Cassandra:** Each SSTable has a Bloom filter. Before reading from disk for a key, check Bloom filter. If "not present," skip the file. Avoids expensive disk I/O for non-existent keys.
-
-**Bigtable/HBase:** Same pattern—Bloom filter per tablet/region to avoid disk lookups.
-
-**Cache layers:** "Is this URL in cache?" If Bloom filter says no, skip cache lookup. Reduces load on cache.
-
-**Deduplication:** "Have we seen this event?" In stream processing, avoid reprocessing. False positive = might reprocess (idempotency handles it).
-
-**Distributed systems:** When syncing data, Bloom filters can summarize "what I have" for efficient diff. Used in some sync protocols.
+- **Cassandra:** Each SSTable has a Bloom filter. Before reading from disk for a key, check Bloom filter. If "not present," skip the file. Avoids expensive disk I/O for non-existent keys.
+- **Bigtable/HBase:** Same pattern—Bloom filter per tablet/region to avoid disk lookups.
+- **Cache layers:** "Is this URL in cache?" If Bloom filter says no, skip cache lookup. Reduces load on cache.
+- **Deduplication:** "Have we seen this event?" In stream processing, avoid reprocessing. False positive = might reprocess (idempotency handles it).
+- **Distributed systems:** When syncing data, Bloom filters can summarize "what I have" for efficient diff. Used in some sync protocols.
 
 ## Limitations
 
-**Can't delete:** Standard Bloom filter doesn't support removal (setting a bit to 0 might affect other elements). **Counting Bloom filter** or **Cuckoo filter** can support deletion.
-
-**Can't list elements:** Only membership test. **Fixed size:** Must size for expected n. If n grows, need to rebuild or use scalable variants (e.g., Scalable Bloom Filter).
+- **Can't delete:** Standard Bloom filter doesn't support removal (setting a bit to 0 might affect other elements). **Counting Bloom filter** or **Cuckoo filter** can support deletion.
+- **Can't list elements:** Only membership test.
+- **Fixed size:** Must size for expected n. If n grows, need to rebuild or use scalable variants (e.g., Scalable Bloom Filter).
 
 # Count-Min Sketch
 
@@ -6298,11 +6300,9 @@ A 2D array of counters: d rows, w columns. d hash functions map elements to colu
 
 ## Use Cases
 
-**Heavy hitters:** Find elements with frequency above threshold. Used in stream processing.
-
-**Rate limiting:** Approximate request counts per user/IP. Redis has a Count-Min Sketch module.
-
-**Analytics:** Approximate counts when exact counts are too expensive. Trade accuracy for memory.
+- **Heavy hitters:** Find elements with frequency above threshold. Used in stream processing.
+- **Rate limiting:** Approximate request counts per user/IP. Redis has a Count-Min Sketch module.
+- **Analytics:** Approximate counts when exact counts are too expensive. Trade accuracy for memory.
 
 ## Comparison to Bloom Filter
 
@@ -6321,17 +6321,16 @@ Leaves = hashes of data blocks. Parent = hash(left child || right child). Root =
 
 ## Use Cases in Distributed Systems
 
-**Cassandra anti-entropy:** Replicas have different data. To sync, compare Merkle trees. Start at root: if same, subtrees match. If different, recurse into children. Only exchange data where trees differ. Efficient: O(log n) rounds to find differences. Cassandra builds Merkle tree per column family, partitioned by token range. Repair process compares trees between replicas, streams differing ranges. **Tree depth:** Deeper = more granular comparison, more rounds. Shallower = fewer rounds, coarser granularity. Cassandra uses configurable depth. **Rebuilding:** After compaction, tree changes. Rebuild periodically for repair.
-
-**Git:** Commit objects form a Merkle DAG. Content-addressable; integrity verified by hashes.
-
-**Bitcoin/blockchain:** Block header contains Merkle root of transactions. Light clients verify inclusion without full block.
-
-**Dynamo-style sync:** Replicas exchange Merkle trees to find what's missing. Sync only differing ranges.
+- **Cassandra anti-entropy:** Replicas have different data. To sync, compare Merkle trees. Start at root: if same, subtrees match. If different, recurse into children. Only exchange data where trees differ. Efficient: O(log n) rounds to find differences. Cassandra builds Merkle tree per column family, partitioned by token range. Repair process compares trees between replicas, streams differing ranges. Tree depth: deeper = more granular comparison, more rounds; shallower = fewer rounds, coarser granularity. Cassandra uses configurable depth. Rebuilding: after compaction, tree changes; rebuild periodically for repair.
+- **Git:** Commit objects form a Merkle DAG. Content-addressable; integrity verified by hashes.
+- **Bitcoin/blockchain:** Block header contains Merkle root of transactions. Light clients verify inclusion without full block.
+- **Dynamo-style sync:** Replicas exchange Merkle trees to find what's missing. Sync only differing ranges.
 
 ## Advantages
 
-**Efficient verification:** Verify a block with O(log n) hashes. **Incremental sync:** Identify differing ranges without full transfer. **Integrity:** Any change to data changes root hash.
+- **Efficient verification:** Verify a block with O(log n) hashes.
+- **Incremental sync:** Identify differing ranges without full transfer.
+- **Integrity:** Any change to data changes root hash.
 
 # LSM Trees
 
@@ -6339,7 +6338,10 @@ Leaves = hashes of data blocks. Parent = hash(left child || right child). Root =
 
 ## Structure
 
-**Memtable:** In-memory sorted structure (e.g., skip list, B-tree). Writes go here first. **Immutable memtables:** When memtable fills, it's frozen and flushed to disk. **SSTables (Sorted String Tables):** On-disk sorted files. Immutable once written. **Levels:** SSTables are organized in levels. L0 = recent flushes. L1, L2, ... = merged, sorted. Compaction merges levels.
+- **Memtable:** In-memory sorted structure (e.g., skip list, B-tree). Writes go here first.
+- **Immutable memtables:** When memtable fills, it's frozen and flushed to disk.
+- **SSTables (Sorted String Tables):** On-disk sorted files. Immutable once written.
+- **Levels:** SSTables are organized in levels. L0 = recent flushes. L1, L2, ... = merged, sorted. Compaction merges levels.
 
 ## Write Path
 
@@ -6358,17 +6360,31 @@ Leaves = hashes of data blocks. Parent = hash(left child || right child). Root =
 
 ## Compaction Strategies
 
-**Leveled:** Each level is 10x larger. Compaction merges overlapping SSTables. **Tiered:** Multiple SSTables per level; compact when enough. **Hybrid:** Leveled for lower levels, tiered for higher. Cassandra uses tiered; RocksDB uses leveled.
+- **Leveled:** Each level is 10x larger. Compaction merges overlapping SSTables.
+- **Tiered:** Multiple SSTables per level; compact when enough.
+- **Hybrid:** Leveled for lower levels, tiered for higher. Cassandra uses tiered; RocksDB uses leveled.
 
-**Compaction I/O:** Compaction is I/O intensive. Read multiple SSTables, merge, write new. Can impact read latency. **Tiered compaction** (Cassandra): Fewer merges, less write amplification, but more SSTables to check on read. **Leveled compaction** (RocksDB): More merges, higher write amplification, but each level has non-overlapping key ranges—fewer files to check per read. **Incremental compaction:** Some systems compact in small chunks to smooth I/O. **Parallel compaction:** Multiple compaction threads. Balance with read workload.
+**Compaction I/O:** Compaction is I/O intensive. Read multiple SSTables, merge, write new. Can impact read latency.
+
+- **Tiered compaction** (Cassandra): Fewer merges, less write amplification, but more SSTables to check on read.
+- **Leveled compaction** (RocksDB): More merges, higher write amplification, but each level has non-overlapping key ranges—fewer files to check per read.
+- **Incremental compaction:** Some systems compact in small chunks to smooth I/O.
+- **Parallel compaction:** Multiple compaction threads. Balance with read workload.
 
 ## LSM Tuning for Production
 
-**Memtable size:** Larger = fewer flushes, more memory. Typical 64-256 MB. **L0 compaction:** L0 has overlapping files. Trigger compaction when L0 file count exceeds threshold (e.g., 4). Critical for read performance. **Bloom filter bits per key:** 10 bits/key gives ~1% false positive. More = less disk I/O, more memory. **Compression:** Compress SSTables. Reduces I/O, uses CPU. Snappy, Zstd common. **Block cache:** Cache decompressed blocks. Critical for read-heavy workloads.
+- **Memtable size:** Larger = fewer flushes, more memory. Typical 64-256 MB.
+- **L0 compaction:** L0 has overlapping files. Trigger compaction when L0 file count exceeds threshold (e.g., 4). Critical for read performance.
+- **Bloom filter bits per key:** 10 bits/key gives ~1% false positive. More = less disk I/O, more memory.
+- **Compression:** Compress SSTables. Reduces I/O, uses CPU. Snappy, Zstd common.
+- **Block cache:** Cache decompressed blocks. Critical for read-heavy workloads.
 
 ## Trade-offs
 
-**Writes:** Very fast—sequential writes, batching. **Reads:** May need to check multiple levels. Bloom filter reduces disk reads. **Space amplification:** Multiple copies of data during compaction. **Write amplification:** Data rewritten many times during compaction.
+- **Writes:** Very fast—sequential writes, batching.
+- **Reads:** May need to check multiple levels. Bloom filter reduces disk reads.
+- **Space amplification:** Multiple copies of data during compaction.
+- **Write amplification:** Data rewritten many times during compaction.
 
 # Skip Lists
 
@@ -6380,11 +6396,15 @@ Multiple linked lists. Bottom level has all elements in order. Each higher level
 
 ## Why Use in Distributed Systems
 
-**Concurrent:** Easier to make lock-free or use fine-grained locks than balanced trees. **No rebalancing:** Inserts/deletes don't trigger complex rebalancing. **Memory:** Extra pointers for levels, but often comparable to trees.
+- **Concurrent:** Easier to make lock-free or use fine-grained locks than balanced trees.
+- **No rebalancing:** Inserts/deletes don't trigger complex rebalancing.
+- **Memory:** Extra pointers for levels, but often comparable to trees.
 
 ## Use Cases
 
-**Redis Sorted Sets:** Skip list + hash table. O(log n) insert by score, O(1) lookup by member. **LSM memtables:** RocksDB uses skip list for memtable. Simple, concurrent, good for in-memory sorted structure. **Time-series:** Ordered by timestamp; skip list supports range queries.
+- **Redis Sorted Sets:** Skip list + hash table. O(log n) insert by score, O(1) lookup by member.
+- **LSM memtables:** RocksDB uses skip list for memtable. Simple, concurrent, good for in-memory sorted structure.
+- **Time-series:** Ordered by timestamp; skip list supports range queries.
 
 # Replication Strategies Deep Dive
 
@@ -6392,23 +6412,28 @@ Replication is the foundation of fault tolerance and scalability. Data is copied
 
 ## Synchronous vs Asynchronous Replication
 
-**Synchronous:** Leader waits for acknowledgment from replicas before confirming write to client. Strong consistency: if client gets success, data is on multiple nodes. **Latency:** Higher—wait for replica round-trips. **Availability:** If replica is down, writes may block or fail.
-
-**Asynchronous:** Leader confirms to client immediately; replicates in background. **Latency:** Lower. **Risk:** If leader fails before replication completes, data may be lost. **Consistency:** Weaker—replicas may lag.
-
-**Semi-synchronous:** Leader waits for at least one replica (or quorum) before confirming. Balance of consistency and latency. Used in MySQL, PostgreSQL.
+- **Synchronous:** Leader waits for acknowledgment from replicas before confirming write to client. Strong consistency: if client gets success, data is on multiple nodes. Latency: higher—wait for replica round-trips. Availability: if replica is down, writes may block or fail.
+- **Asynchronous:** Leader confirms to client immediately; replicates in background. Latency: lower. Risk: if leader fails before replication completes, data may be lost. Consistency: weaker—replicas may lag.
+- **Semi-synchronous:** Leader waits for at least one replica (or quorum) before confirming. Balance of consistency and latency. Used in MySQL, PostgreSQL.
 
 ## Chain Replication
 
-Replicas form a chain: Client → Head → Node2 → ... → Tail. Writes go to head, propagate down chain. Reads go to tail (most up-to-date). **Pros:** Simple, deterministic order. **Cons:** Head is bottleneck; tail failure affects reads. Used in some storage systems.
+Replicas form a chain: Client → Head → Node2 → ... → Tail. Writes go to head, propagate down chain. Reads go to tail (most up-to-date).
+
+**Pros:** Simple, deterministic order.
+
+**Cons:** Head is bottleneck; tail failure affects reads. Used in some storage systems.
 
 ## Primary-Backup vs Multi-Primary
 
-**Primary-backup:** One primary accepts writes; backups replicate. Failover promotes backup. **Multi-primary:** Multiple nodes accept writes. Conflict resolution required. **Use primary-backup** when you want strong consistency; **multi-primary** when you need write availability in multiple regions (with conflict handling).
+- **Primary-backup:** One primary accepts writes; backups replicate. Failover promotes backup.
+- **Multi-primary:** Multiple nodes accept writes. Conflict resolution required.
+- **Use primary-backup** when you want strong consistency; **multi-primary** when you need write availability in multiple regions (with conflict handling).
 
 ## Quorum Reads and Writes
 
-**Write quorum W, read quorum R:** For N replicas, write to W, read from R. If W + R > N, each read sees at least one node that participated in the write. **Strong consistency.** Example: N=3, W=2, R=2. **Tunable:** W=1, R=N for fast writes, slow reads. W=N, R=1 for read-heavy.
+- **Write quorum W, read quorum R:** For N replicas, write to W, read from R. If W + R > N, each read sees at least one node that participated in the write. Strong consistency. Example: N=3, W=2, R=2.
+- **Tunable:** W=1, R=N for fast writes, slow reads. W=N, R=1 for read-heavy.
 
 ## Real-World Examples
 
@@ -6430,7 +6455,9 @@ User posts a comment. They refresh. They expect to see their comment. With event
 
 ## Implementation
 
-**Sticky sessions:** Route client to same replica. That replica has the write. **Version tracking:** Client includes "last write version" in read. Replica waits until it has that version before responding. **Causal tokens:** Client gets token from write; includes in read. System ensures read sees at least that state. DynamoDB uses this with session tokens.
+- **Sticky sessions:** Route client to same replica. That replica has the write.
+- **Version tracking:** Client includes "last write version" in read. Replica waits until it has that version before responding.
+- **Causal tokens:** Client gets token from write; includes in read. System ensures read sees at least that state. DynamoDB uses this with session tokens.
 
 ## Session vs Strong Consistency
 
@@ -6446,15 +6473,22 @@ If operation A happens-before B, then every node that processes B must have proc
 
 ## Use Cases
 
-**Social feeds:** Comment happens-after post. Users must see post before comment. **Collaborative editing:** Edit B depends on edit A. Causal order must be preserved. **Chat:** Message reply happens-after original. Causal consistency ensures correct order.
+- **Social feeds:** Comment happens-after post. Users must see post before comment.
+- **Collaborative editing:** Edit B depends on edit A. Causal order must be preserved.
+- **Chat:** Message reply happens-after original. Causal consistency ensures correct order.
 
 ## Implementation
 
-**Vector clocks:** Track causal dependencies. Replica only applies operation when it has all dependencies. **Hybrid Logical Clocks:** Same idea, bounded size. **Explicit dependencies:** Client sends "I've seen up to version X" with write. Replicas order accordingly.
+- **Vector clocks:** Track causal dependencies. Replica only applies operation when it has all dependencies.
+- **Hybrid Logical Clocks:** Same idea, bounded size.
+- **Explicit dependencies:** Client sends "I've seen up to version X" with write. Replicas order accordingly.
 
 ## Systems Offering Causal Consistency
 
-**MongoDB:** Causal consistency mode. **Cosmos DB:** Bounded staleness with session tokens. **CockroachDB:** Serializable by default; can use lower isolation. **DynamoDB:** Session consistency provides causal within session.
+- **MongoDB:** Causal consistency mode.
+- **Cosmos DB:** Bounded staleness with session tokens.
+- **CockroachDB:** Serializable by default; can use lower isolation.
+- **DynamoDB:** Session consistency provides causal within session.
 
 # Linearizability
 
@@ -6462,11 +6496,16 @@ If operation A happens-before B, then every node that processes B must have proc
 
 ## Why It Matters
 
-**Distributed locks:** Must be linearizable. Two clients can't both hold the same lock. **Leader election:** Only one leader. **Registers:** Read must return last written value. **Financial transactions:** Balance updates must be linearizable.
+- **Distributed locks:** Must be linearizable. Two clients can't both hold the same lock.
+- **Leader election:** Only one leader.
+- **Registers:** Read must return last written value.
+- **Financial transactions:** Balance updates must be linearizable.
 
 ## Implementation
 
-**Consensus (Raft, Paxos):** Replicated log with single leader. All writes go through leader. Linearizable. **Two-phase commit:** Coordinator ensures all participants commit or abort. Expensive. **Single leader + sync replication:** Leader waits for quorum. Linearizable.
+- **Consensus (Raft, Paxos):** Replicated log with single leader. All writes go through leader. Linearizable.
+- **Two-phase commit:** Coordinator ensures all participants commit or abort. Expensive.
+- **Single leader + sync replication:** Leader waits for quorum. Linearizable.
 
 ## Cost
 
@@ -6474,7 +6513,8 @@ Linearizability requires coordination. During partition, minority partition cann
 
 ## When to Use
 
-**Use linearizability for:** Locks, leader election, configuration, critical financial operations. **Avoid for:** High-throughput writes, multi-region with local writes, when eventual consistency suffices (caches, analytics, social feeds).
+- **Use linearizability for:** Locks, leader election, configuration, critical financial operations.
+- **Avoid for:** High-throughput writes, multi-region with local writes, when eventual consistency suffices (caches, analytics, social feeds).
 
 # Conflict Resolution and CRDTs
 
@@ -6482,29 +6522,49 @@ When replicas diverge (partition, multi-primary), they must merge. **Conflict re
 
 ## Conflict Resolution Strategies
 
-**Last-write-wins (LWW):** Use timestamp. Newer wins. Simple but loses concurrent updates. **Version vectors:** Detect concurrent updates. Application resolves (e.g., merge text, prompt user). **CRDTs:** Structure guarantees merge. No conflict—automatic.
+- **Last-write-wins (LWW):** Use timestamp. Newer wins. Simple but loses concurrent updates.
+- **Version vectors:** Detect concurrent updates. Application resolves (e.g., merge text, prompt user).
+- **CRDTs:** Structure guarantees merge. No conflict—automatic.
 
 ## CRDTs Explained
 
-CRDTs are data types with two properties: **Commutative:** Operations commute; order doesn't matter. **Idempotent (for state-based) or associative (for op-based):** Merging is well-defined. **State-based (CvRDT):** Replicas exchange full state. Merge is union/lattice join. **Op-based (CmRDT):** Replicas exchange operations. Operations must be commutative.
+CRDTs are data types with two properties:
+
+- **Commutative:** Operations commute; order doesn't matter.
+- **Idempotent (for state-based) or associative (for op-based):** Merging is well-defined.
+- **State-based (CvRDT):** Replicas exchange full state. Merge is union/lattice join.
+- **Op-based (CmRDT):** Replicas exchange operations. Operations must be commutative.
 
 ## Examples
 
-**G-Counter:** Increment-only counter. Merge = max per replica. **PN-Counter:** Increment and decrement. Two G-counters. **LWW-Element-Set:** Set with last-write-wins per element. **RGA (Replicated Growable Array):** List for collaborative editing. **OR-Set:** Add/remove set. Tombstones or version vectors for removes.
+- **G-Counter:** Increment-only counter. Merge = max per replica.
+- **PN-Counter:** Increment and decrement. Two G-counters.
+- **LWW-Element-Set:** Set with last-write-wins per element.
+- **RGA (Replicated Growable Array):** List for collaborative editing.
+- **OR-Set:** Add/remove set. Tombstones or version vectors for removes.
 
-**OR-Set deep dive:** Add element with unique tag. Remove adds tombstone for that tag. Merge: element present if add exists and no remove for same tag, or if add's timestamp/version > remove's. Enables add-then-remove-then-add. **State-based vs op-based:** State-based (CvRDT) sends full state; merge is deterministic. Op-based (CmRDT) sends operations; requires causal delivery. State-based is simpler for deployment; op-based can be more efficient for large state.
+**OR-Set deep dive:** Add element with unique tag. Remove adds tombstone for that tag. Merge: element present if add exists and no remove for same tag, or if add's timestamp/version > remove's. Enables add-then-remove-then-add.
+
+- **State-based vs op-based:** State-based (CvRDT) sends full state; merge is deterministic. Op-based (CmRDT) sends operations; requires causal delivery. State-based is simpler for deployment; op-based can be more efficient for large state.
 
 ## CRDT Convergence Guarantees
 
-**Strong eventual consistency:** All replicas that have received the same set of updates will converge to the same state. No coordination required. **Causal consistency:** CRDTs preserve causality. If A happened before B, all replicas see A before B. **Commutativity:** Key insight—if all operations commute, order doesn't matter. Merge is always defined.
+- **Strong eventual consistency:** All replicas that have received the same set of updates will converge to the same state. No coordination required.
+- **Causal consistency:** CRDTs preserve causality. If A happened before B, all replicas see A before B.
+- **Commutativity:** Key insight—if all operations commute, order doesn't matter. Merge is always defined.
 
 ## Use Cases
 
-**Riak:** CRDTs for distributed data types. **Collaborative editing:** Google Docs-style. **Shopping cart:** Add/remove items. **Counters:** Likes, views.
+- **Riak:** CRDTs for distributed data types.
+- **Collaborative editing:** Google Docs-style.
+- **Shopping cart:** Add/remove items.
+- **Counters:** Likes, views.
 
 ## Limitations
 
-**Size:** Some CRDTs grow (tombstones). **Semantics:** Not all applications fit CRDTs. **Ordering:** CRDTs provide eventual consistency, not strong ordering.
+- **Size:** Some CRDTs grow (tombstones).
+- **Semantics:** Not all applications fit CRDTs.
+- **Ordering:** CRDTs provide eventual consistency, not strong ordering.
 
 # Distributed Tracing
 
@@ -6512,7 +6572,11 @@ When a request flows through multiple services, understanding its path and where
 
 ## Core Concepts
 
-**Trace:** The full path of a request across services. **Span:** A single unit of work (e.g., HTTP call, DB query). Has start time, duration, name, attributes. **Trace ID:** Unique per request. All spans in a trace share it. **Span ID:** Unique per span. **Parent span:** Spans form a tree. Child spans represent work done within a parent.
+- **Trace:** The full path of a request across services.
+- **Span:** A single unit of work (e.g., HTTP call, DB query). Has start time, duration, name, attributes.
+- **Trace ID:** Unique per request. All spans in a trace share it.
+- **Span ID:** Unique per span.
+- **Parent span:** Spans form a tree. Child spans represent work done within a parent.
 
 ## How It Works
 
@@ -6526,11 +6590,18 @@ When a request flows through multiple services, understanding its path and where
 
 At high volume, tracing every request is expensive. **Sampling:** Record a fraction of traces. Strategies: head-based (decide at start), tail-based (decide at end—sample slow/error traces). **Head-based:** 1% of traces. Simple. May miss important slow traces. **Tail-based:** Buffer spans, decide at end. Sample traces with errors or high latency. More accurate but complex.
 
-**Adaptive sampling:** Adjust rate based on load. High load = lower rate. **Priority sampling:** Always sample traces with errors. Sample 100% of errors, 1% of success. **Consistent sampling:** Same trace ID always gets same decision. If we sample, all spans in trace are sampled. Use hash(trace_id) % 100 < rate. **Parent-based:** Child inherits parent's sampling decision. Ensures full trace or no trace. **Cost-based:** Sample to stay within budget. Monitor trace volume, adjust rate.
+- **Adaptive sampling:** Adjust rate based on load. High load = lower rate.
+- **Priority sampling:** Always sample traces with errors. Sample 100% of errors, 1% of success.
+- **Consistent sampling:** Same trace ID always gets same decision. If we sample, all spans in trace are sampled. Use hash(trace_id) % 100 < rate.
+- **Parent-based:** Child inherits parent's sampling decision. Ensures full trace or no trace.
+- **Cost-based:** Sample to stay within budget. Monitor trace volume, adjust rate.
 
 ## Best Practices
 
-**Low overhead:** Tracing must not significantly impact latency. Async export, sampling. **Meaningful spans:** Name spans clearly (e.g., `HTTP GET /users`, `db.query.users`). Add attributes (user_id, request_id). **Errors:** Record errors in spans. Critical for debugging. **Database queries:** Trace DB calls. Often the bottleneck.
+- **Low overhead:** Tracing must not significantly impact latency. Async export, sampling.
+- **Meaningful spans:** Name spans clearly (e.g., `HTTP GET /users`, `db.query.users`). Add attributes (user_id, request_id).
+- **Errors:** Record errors in spans. Critical for debugging.
+- **Database queries:** Trace DB calls. Often the bottleneck.
 
 ## OpenTelemetry
 
@@ -6542,27 +6613,50 @@ Metrics are numerical measurements over time. In distributed systems, the right 
 
 ## The RED Method (Requests)
 
-For request-driven services: **Rate:** Requests per second. **Errors:** Error rate (4xx, 5xx). **Duration:** Latency distribution (p50, p95, p99).
+For request-driven services:
+
+- **Rate:** Requests per second.
+- **Errors:** Error rate (4xx, 5xx).
+- **Duration:** Latency distribution (p50, p95, p99).
 
 ## The USE Method (Resources)
 
-For resources (CPU, disk, network): **Utilization:** % of time busy. **Saturation:** Degree of queueing. **Errors:** Error count.
+For resources (CPU, disk, network):
+
+- **Utilization:** % of time busy.
+- **Saturation:** Degree of queueing.
+- **Errors:** Error count.
 
 ## Latency Percentiles
 
-**p50 (median):** Half of requests faster. **p95:** 95% faster. **p99:** 99% faster. **Why p99:** Tail latency matters. A few slow requests can dominate user experience. **Histograms:** Store full distribution. Prometheus supports histograms. Compute any percentile.
+- **p50 (median):** Half of requests faster.
+- **p95:** 95% faster.
+- **p99:** 99% faster.
+- **Why p99:** Tail latency matters. A few slow requests can dominate user experience.
+- **Histograms:** Store full distribution. Prometheus supports histograms. Compute any percentile.
 
 ## Key Metrics for Distributed Systems
 
-**Request rate:** QPS, RPS per service. **Error rate:** 5xx, timeouts, circuit breaker trips. **Latency:** p50, p95, p99, p99.9. **Saturation:** Queue depth, connection pool usage. **Throughput:** Messages/sec (Kafka), writes/sec (DB). **Availability:** Uptime, successful requests / total.
+- **Request rate:** QPS, RPS per service.
+- **Error rate:** 5xx, timeouts, circuit breaker trips.
+- **Latency:** p50, p95, p99, p99.9.
+- **Saturation:** Queue depth, connection pool usage.
+- **Throughput:** Messages/sec (Kafka), writes/sec (DB).
+- **Availability:** Uptime, successful requests / total.
 
 ## SLOs and Error Budgets
 
-**SLI:** Actual measurement (e.g., 99.9% of requests &lt; 200ms). **SLO:** Target (e.g., 99.9% of requests &lt; 200ms). **Error budget:** 1 - SLO. 99.9% SLO = 0.1% error budget. **Use:** Don't aim for 100%. Use error budget for releases, experiments. When budget exhausted, freeze releases, focus on reliability.
+- **SLI:** Actual measurement (e.g., 99.9% of requests < 200ms).
+- **SLO:** Target (e.g., 99.9% of requests < 200ms).
+- **Error budget:** 1 - SLO. 99.9% SLO = 0.1% error budget.
+- **Use:** Don't aim for 100%. Use error budget for releases, experiments. When budget exhausted, freeze releases, focus on reliability.
 
 ## Tools
 
-**Prometheus:** Pull-based, dimensional metrics, PromQL. Industry standard. **Grafana:** Visualization, dashboards, alerting. **StatsD:** Push-based, simple. **Vendor:** Datadog, New Relic, etc.
+- **Prometheus:** Pull-based, dimensional metrics, PromQL. Industry standard.
+- **Grafana:** Visualization, dashboards, alerting.
+- **StatsD:** Push-based, simple.
+- **Vendor:** Datadog, New Relic, etc.
 
 # Correlation IDs and Request Tracing
 
@@ -6570,15 +6664,22 @@ A **correlation ID** (or request ID) is a unique identifier for a request. It's 
 
 ## Implementation
 
-**Generate:** At ingress (API gateway, load balancer, first service). UUID or similar. **Propagate:** Add to HTTP headers (`X-Request-ID`, `X-Correlation-ID`). Pass to downstream. **Log:** Include in every log line. Structured logging: `{"request_id": "abc-123", "message": "..."}`. **Trace:** Correlation ID often equals or links to trace ID. Trace provides timing; correlation ID provides log correlation.
+- **Generate:** At ingress (API gateway, load balancer, first service). UUID or similar.
+- **Propagate:** Add to HTTP headers (`X-Request-ID`, `X-Correlation-ID`). Pass to downstream.
+- **Log:** Include in every log line. Structured logging: `{"request_id": "abc-123", "message": "..."}`.
+- **Trace:** Correlation ID often equals or links to trace ID. Trace provides timing; correlation ID provides log correlation.
 
 ## Benefits
 
-**Debugging:** User reports error. Get request ID from response. Search logs. See full path, errors at each service. **Support:** Customer support can trace user issues. **Analytics:** Track request flow, identify patterns.
+- **Debugging:** User reports error. Get request ID from response. Search logs. See full path, errors at each service.
+- **Support:** Customer support can trace user issues.
+- **Analytics:** Track request flow, identify patterns.
 
 ## Best Practices
 
-**Always propagate:** Every service must pass the ID. Middleware helps. **Include in responses:** Return request ID in response header. Client can report it. **Structured logging:** JSON logs with request_id. Easy to grep, aggregate.
+- **Always propagate:** Every service must pass the ID. Middleware helps.
+- **Include in responses:** Return request ID in response header. Client can report it.
+- **Structured logging:** JSON logs with request_id. Easy to grep, aggregate.
 
 # Structured Logging for Distributed Systems
 
@@ -6599,11 +6700,17 @@ Unstructured logs ("User 123 logged in") are hard to query. **Structured logging
 }
 ```
 
-**Consistent fields:** timestamp, level, service, request_id, trace_id, message. **Context:** Add request-specific fields (user_id, order_id). **No PII in logs:** Be careful with passwords, tokens, personal data.
+- **Consistent fields:** timestamp, level, service, request_id, trace_id, message.
+- **Context:** Add request-specific fields (user_id, order_id).
+- **No PII in logs:** Be careful with passwords, tokens, personal data.
 
 ## Log Levels
 
-**ERROR:** Failures, exceptions. **WARN:** Recoverable issues, deprecations. **INFO:** Normal operations, request summaries. **DEBUG:** Detailed info for debugging. **TRACE:** Very verbose. In production, typically INFO or WARN. DEBUG for troubleshooting.
+- **ERROR:** Failures, exceptions.
+- **WARN:** Recoverable issues, deprecations.
+- **INFO:** Normal operations, request summaries.
+- **DEBUG:** Detailed info for debugging.
+- **TRACE:** Very verbose. In production, typically INFO or WARN. DEBUG for troubleshooting.
 
 ## Aggregation and Search
 
@@ -6619,19 +6726,36 @@ Distributed failures are hard: multiple services, async, retries, timeouts. Syst
 
 ## Reproduce
 
-**Get trace ID / request ID:** From user, logs, or monitoring. **Trace the request:** Use distributed tracing. See full path, latency at each hop. **Identify failure point:** Which service failed? Timeout? Error?
+- **Get trace ID / request ID:** From user, logs, or monitoring.
+- **Trace the request:** Use distributed tracing. See full path, latency at each hop.
+- **Identify failure point:** Which service failed? Timeout? Error?
 
 ## Common Failure Modes
 
-**Cascading failures:** Service A slows down; callers time out; A's thread pool exhausts; A fails. Fix: circuit breaker, timeouts, backpressure. **Retry storms:** Client retries; multiplies load; worsens failure. Fix: exponential backoff, limit retries. **Split brain:** Partition; two leaders; conflicting writes. Fix: quorum, fencing. **Clock skew:** Timestamps wrong; ordering broken. Fix: logical clocks, NTP. **Resource exhaustion:** Connection pool, file descriptors, memory. Fix: limits, monitoring.
+- **Cascading failures:** Service A slows down; callers time out; A's thread pool exhausts; A fails. Fix: circuit breaker, timeouts, backpressure.
+- **Retry storms:** Client retries; multiplies load; worsens failure. Fix: exponential backoff, limit retries.
+- **Split brain:** Partition; two leaders; conflicting writes. Fix: quorum, fencing.
+- **Clock skew:** Timestamps wrong; ordering broken. Fix: logical clocks, NTP.
+- **Resource exhaustion:** Connection pool, file descriptors, memory. Fix: limits, monitoring.
 
 ## Tools and Techniques
 
-**Tracing:** See request path. **Logs:** Correlate by request_id. **Metrics:** Spikes in latency, errors. **Chaos engineering:** Inject failures (kill node, add latency). Verify system recovers. **Runbooks:** Document common failures and fixes. **Postmortems:** After incidents, write postmortem. Blameless. Learn and improve.
+- **Tracing:** See request path.
+- **Logs:** Correlate by request_id.
+- **Metrics:** Spikes in latency, errors.
+- **Chaos engineering:** Inject failures (kill node, add latency). Verify system recovers.
+- **Runbooks:** Document common failures and fixes.
+- **Postmortems:** After incidents, write postmortem. Blameless. Learn and improve.
 
 ## Mental Model
 
-Think in terms of: **Failure domain:** What can fail? Node, network, disk. **Propagation:** How does failure spread? **Detection:** How do we know? **Recovery:** How do we recover? **Prevention:** How do we prevent recurrence?
+Think in terms of:
+
+- **Failure domain:** What can fail? Node, network, disk.
+- **Propagation:** How does failure spread?
+- **Detection:** How do we know?
+- **Recovery:** How do we recover?
+- **Prevention:** How do we prevent recurrence?
 
 # Idempotency
 
@@ -6639,23 +6763,39 @@ An operation is **idempotent** if performing it multiple times has the same effe
 
 ## Why Idempotency Matters
 
-**Retries:** Client retries on timeout. Request might have succeeded. Without idempotency, retry = duplicate operation. **Message queues:** At-least-once delivery. Consumer might process same message twice. **Load balancers:** Request might be sent to multiple servers (rare but possible). **Distributed transactions:** Saga compensations might retry. Must be idempotent.
+- **Retries:** Client retries on timeout. Request might have succeeded. Without idempotency, retry = duplicate operation.
+- **Message queues:** At-least-once delivery. Consumer might process same message twice.
+- **Load balancers:** Request might be sent to multiple servers (rare but possible).
+- **Distributed transactions:** Saga compensations might retry. Must be idempotent.
 
 ## Implementing Idempotency
 
-**Idempotency key:** Client sends unique key (e.g., UUID) with request. Server stores (key, response) in cache or DB. Duplicate request with same key returns cached response. No re-execution. **Natural idempotency:** Some operations are naturally idempotent. `SET x=5` is idempotent. `INCREMENT x` is not. **Database constraints:** Unique constraint on (user_id, order_id). Duplicate insert fails. Application handles. **Version/optimistic locking:** Update only if version matches. Prevents duplicate updates.
+- **Idempotency key:** Client sends unique key (e.g., UUID) with request. Server stores (key, response) in cache or DB. Duplicate request with same key returns cached response. No re-execution.
+- **Natural idempotency:** Some operations are naturally idempotent. `SET x=5` is idempotent. `INCREMENT x` is not.
+- **Database constraints:** Unique constraint on (user_id, order_id). Duplicate insert fails. Application handles.
+- **Version/optimistic locking:** Update only if version matches. Prevents duplicate updates.
 
 ## Idempotency Key Best Practices
 
-**Client-generated:** Client creates key. UUID v4. **Scope:** Per logical operation. Payment, order placement. **Storage:** Store key + response. TTL (e.g., 24 hours). Clean up old keys. **Key format:** `{operation}_{client_id}_{uuid}`. Avoid collisions. **Response:** Return same response for duplicate. Client might not know it was duplicate.
+- **Client-generated:** Client creates key. UUID v4.
+- **Scope:** Per logical operation. Payment, order placement.
+- **Storage:** Store key + response. TTL (e.g., 24 hours). Clean up old keys.
+- **Key format:** `{operation}_{client_id}_{uuid}`. Avoid collisions.
+- **Response:** Return same response for duplicate. Client might not know it was duplicate.
 
 ## Real-World Examples
 
-**Stripe:** Idempotency keys for payments. Prevents double charge on retry. **AWS:** Many APIs support idempotency tokens. **Kafka:** Exactly-once semantics use transactional IDs + idempotent producer. **Database:** `INSERT ... ON CONFLICT DO NOTHING` for idempotent inserts.
+- **Stripe:** Idempotency keys for payments. Prevents double charge on retry.
+- **AWS:** Many APIs support idempotency tokens.
+- **Kafka:** Exactly-once semantics use transactional IDs + idempotent producer.
+- **Database:** `INSERT ... ON CONFLICT DO NOTHING` for idempotent inserts.
 
 ## Pitfalls
 
-**Key too broad:** One key for many operations. Duplicate one = blocks all. **Key too narrow:** Different key per retry. No deduplication. **Storage growth:** Keys accumulate. Implement TTL, cleanup. **Distributed storage:** Keys in distributed cache. Consistency for "have we seen this?"—use consistent storage (DB, Redis with care).
+- **Key too broad:** One key for many operations. Duplicate one = blocks all.
+- **Key too narrow:** Different key per retry. No deduplication.
+- **Storage growth:** Keys accumulate. Implement TTL, cleanup.
+- **Distributed storage:** Keys in distributed cache. Consistency for "have we seen this?"—use consistent storage (DB, Redis with care).
 
 # Retry and Exponential Backoff
 
@@ -6663,7 +6803,9 @@ When a request fails (timeout, 5xx, connection refused), retrying is natural. Na
 
 ## The Problem with Naive Retries
 
-**Retry storm:** Service is overloaded. All clients retry immediately. Load multiplies. Service gets worse. **Thundering herd:** Many clients retry at same time. Spikes. **Wasted effort:** Transient failure might resolve in 100ms. Retrying in 1ms wastes requests.
+- **Retry storm:** Service is overloaded. All clients retry immediately. Load multiplies. Service gets worse.
+- **Thundering herd:** Many clients retry at same time. Spikes.
+- **Wasted effort:** Transient failure might resolve in 100ms. Retrying in 1ms wastes requests.
 
 ## Exponential Backoff
 
@@ -6675,15 +6817,23 @@ Without jitter, all clients retry at same time (e.g., after 1s). Add randomness.
 
 ## When to Retry
 
-**Retry:** Transient failures (timeout, 503, connection reset). **Don't retry:** 4xx (client error), 401/403 (auth). **Conditional:** 5xx—retry. 429 (rate limit)—retry with backoff. **Idempotency:** Retries must be idempotent. Use idempotency keys.
+- **Retry:** Transient failures (timeout, 503, connection reset).
+- **Don't retry:** 4xx (client error), 401/403 (auth).
+- **Conditional:** 5xx—retry. 429 (rate limit)—retry with backoff.
+- **Idempotency:** Retries must be idempotent. Use idempotency keys.
 
 ## Retry Limits
 
-**Max retries:** 3–5 typical. Infinite retries can hang. **Timeout:** Total time for all retries. Abort if exceeded. **Circuit breaker:** If many failures, stop retrying. Open circuit. See Circuit Breaker section.
+- **Max retries:** 3–5 typical. Infinite retries can hang.
+- **Timeout:** Total time for all retries. Abort if exceeded.
+- **Circuit breaker:** If many failures, stop retrying. Open circuit. See Circuit Breaker section.
 
 ## Implementation
 
-**Libraries:** Most HTTP clients support retry (e.g., `retries` in Python requests, `Retry` in urllib3). **gRPC:** Built-in retry with exponential backoff. **AWS SDK:** Automatic retry with exponential backoff. **Custom:** Implement with attempt counter, sleep with jitter, idempotency key.
+- **Libraries:** Most HTTP clients support retry (e.g., `retries` in Python requests, `Retry` in urllib3).
+- **gRPC:** Built-in retry with exponential backoff.
+- **AWS SDK:** Automatic retry with exponential backoff.
+- **Custom:** Implement with attempt counter, sleep with jitter, idempotency key.
 
 # Bulkhead Pattern
 
@@ -6691,23 +6841,35 @@ The **bulkhead pattern** isolates resources so that a failure in one part of the
 
 ## The Problem
 
-**Shared thread pool:** Service A and B share a thread pool. A gets slow (e.g., downstream timeout). Threads block. B can't get threads. B fails. A's problem cascades to B. **Shared connection pool:** Same idea. One slow dependency exhausts connections for all.
+- **Shared thread pool:** Service A and B share a thread pool. A gets slow (e.g., downstream timeout). Threads block. B can't get threads. B fails. A's problem cascades to B.
+- **Shared connection pool:** Same idea. One slow dependency exhausts connections for all.
 
 ## The Solution
 
-**Separate pools:** Give A and B separate thread pools (or connection pools). A's exhaustion doesn't affect B. **Isolation:** Critical path vs. best-effort. Give critical path dedicated resources. **Limits:** Cap threads per dependency. One dependency can't take all.
+- **Separate pools:** Give A and B separate thread pools (or connection pools). A's exhaustion doesn't affect B.
+- **Isolation:** Critical path vs. best-effort. Give critical path dedicated resources.
+- **Limits:** Cap threads per dependency. One dependency can't take all.
 
 ## Implementation
 
-**Thread pools:** ExecutorService per dependency. Size appropriately. **Connection pools:** Separate pool per downstream service. **Semaphores:** Limit concurrent calls to a service. **Kubernetes:** Resource limits per container. CPU, memory. **Service mesh:** Envoy can limit connections per upstream.
+- **Thread pools:** ExecutorService per dependency. Size appropriately.
+- **Connection pools:** Separate pool per downstream service.
+- **Semaphores:** Limit concurrent calls to a service.
+- **Kubernetes:** Resource limits per container. CPU, memory.
+- **Service mesh:** Envoy can limit connections per upstream.
 
 ## Trade-offs
 
-**Resource usage:** More pools = more threads, more memory. **Complexity:** More configuration. **Benefit:** Failure isolation. One bad dependency doesn't take down the system.
+- **Resource usage:** More pools = more threads, more memory.
+- **Complexity:** More configuration.
+- **Benefit:** Failure isolation. One bad dependency doesn't take down the system.
 
 ## Real-World
 
-**Netflix Hystrix:** (Deprecated but concept lives on.) Thread pool isolation per dependency. **Resilience4j:** Bulkhead limiter. **Kubernetes:** Pod resource limits. **Database:** Connection pool per service or per tenant.
+- **Netflix Hystrix:** (Deprecated but concept lives on.) Thread pool isolation per dependency.
+- **Resilience4j:** Bulkhead limiter.
+- **Kubernetes:** Pod resource limits.
+- **Database:** Connection pool per service or per tenant.
 
 # Outbox Pattern
 
@@ -6715,25 +6877,41 @@ The **outbox pattern** ensures reliable event publishing when you need to update
 
 ## The Problem
 
-**Dual write:** Transaction updates DB. After commit, publish to message broker. If publish fails, DB is updated but event is lost. Or: publish first, then update. If update fails, event is published but DB is inconsistent. **No atomicity:** DB and broker are separate. No distributed transaction (or expensive).
+- **Dual write:** Transaction updates DB. After commit, publish to message broker. If publish fails, DB is updated but event is lost. Or: publish first, then update. If update fails, event is published but DB is inconsistent.
+- **No atomicity:** DB and broker are separate. No distributed transaction (or expensive).
 
 ## The Solution: Outbox Table
 
-1. **Single transaction:** Insert/update business data AND insert into outbox table (same DB transaction). 2. **Outbox table:** Columns: id, aggregate_id, event_type, payload, created_at, processed. 3. **Background job:** Poll outbox for unprocessed rows. Publish to broker. Mark processed. 4. **At-least-once:** Job might publish twice (crash after publish, before mark). Consumers must be idempotent. **Exactly-once:** Use transactional outbox with DB log tailing (CDC). Debezium reads DB log, publishes. Single source of truth.
+1. **Single transaction:** Insert/update business data AND insert into outbox table (same DB transaction).
+2. **Outbox table:** Columns: id, aggregate_id, event_type, payload, created_at, processed.
+3. **Background job:** Poll outbox for unprocessed rows. Publish to broker. Mark processed.
+4. **At-least-once:** Job might publish twice (crash after publish, before mark). Consumers must be idempotent.
+5. **Exactly-once:** Use transactional outbox with DB log tailing (CDC). Debezium reads DB log, publishes. Single source of truth.
 
 ## Implementation Details
 
-**Polling:** Simple. Poll outbox every N seconds. **CDC (Change Data Capture):** Debezium, Kafka Connect read DB transaction log. Publish changes. No polling. Lower latency. **Ordering:** Process in order (by aggregate_id or created_at). Preserve order per aggregate. **Cleanup:** Delete processed rows after retention. Or archive.
+- **Polling:** Simple. Poll outbox every N seconds.
+- **CDC (Change Data Capture):** Debezium, Kafka Connect read DB transaction log. Publish changes. No polling. Lower latency.
+- **Ordering:** Process in order (by aggregate_id or created_at). Preserve order per aggregate.
+- **Cleanup:** Delete processed rows after retention. Or archive.
 
-**Transactional outbox with Kafka:** Use single DB transaction: insert business row + insert outbox row. CDC (Debezium) reads DB log, publishes outbox rows to Kafka. Exactly-once from DB perspective. Kafka consumer must be idempotent for end-to-end exactly-once. **Outbox schema:** `id UUID, aggregate_type VARCHAR, aggregate_id VARCHAR, event_type VARCHAR, payload JSONB, created_at TIMESTAMP, metadata JSONB`. Index on (processed, created_at) for polling. **Batch processing:** Poll multiple rows, publish in batch. Reduces broker round-trips. **Idempotent consumer:** Use aggregate_id + event_id as idempotency key. Deduplicate on consumer side.
+**Transactional outbox with Kafka:** Use single DB transaction: insert business row + insert outbox row. CDC (Debezium) reads DB log, publishes outbox rows to Kafka. Exactly-once from DB perspective. Kafka consumer must be idempotent for end-to-end exactly-once.
+
+- **Outbox schema:** `id UUID, aggregate_type VARCHAR, aggregate_id VARCHAR, event_type VARCHAR, payload JSONB, created_at TIMESTAMP, metadata JSONB`. Index on (processed, created_at) for polling.
+- **Batch processing:** Poll multiple rows, publish in batch. Reduces broker round-trips.
+- **Idempotent consumer:** Use aggregate_id + event_id as idempotency key. Deduplicate on consumer side.
 
 ## When to Use
 
-**Event-driven architecture:** Service updates state, must notify others. **Saga:** Each step updates DB and emits event. Outbox ensures consistency. **CQRS:** Write model updates; event for read model. Outbox for reliable event publishing.
+- **Event-driven architecture:** Service updates state, must notify others.
+- **Saga:** Each step updates DB and emits event. Outbox ensures consistency.
+- **CQRS:** Write model updates; event for read model. Outbox for reliable event publishing.
 
 ## Alternatives
 
-**Transactional outbox:** As above. **Two-phase commit:** DB and broker in one transaction. Rarely supported, expensive. **Best-effort + reconciliation:** Accept rare inconsistencies. Periodic reconciliation job. Simpler but weaker.
+- **Transactional outbox:** As above.
+- **Two-phase commit:** DB and broker in one transaction. Rarely supported, expensive.
+- **Best-effort + reconciliation:** Accept rare inconsistencies. Periodic reconciliation job. Simpler but weaker.
 
 # Circuit Breaker Deep Dive
 
@@ -6741,17 +6919,26 @@ A **circuit breaker** prevents cascading failures by stopping calls to a failing
 
 ## States
 
-**Closed:** Normal operation. Requests go through. Track failures. **Open:** Too many failures. Requests fail immediately (no call to dependency). After timeout, transition to half-open. **Half-open:** Allow limited requests through. If success, close circuit. If failure, re-open.
+- **Closed:** Normal operation. Requests go through. Track failures.
+- **Open:** Too many failures. Requests fail immediately (no call to dependency). After timeout, transition to half-open.
+- **Half-open:** Allow limited requests through. If success, close circuit. If failure, re-open.
 
-**State transitions:** Closed → Open when failure threshold exceeded. Open → Half-open after wait duration. Half-open → Closed on success (often single success sufficient). Half-open → Open on failure. **Count-based vs time-based:** Count-based: open after N failures. Time-based: open when failure rate in last T seconds exceeds threshold. Time-based adapts to traffic changes.
+**State transitions:** Closed → Open when failure threshold exceeded. Open → Half-open after wait duration. Half-open → Closed on success (often single success sufficient). Half-open → Open on failure.
+
+- **Count-based vs time-based:** Count-based: open after N failures. Time-based: open when failure rate in last T seconds exceeds threshold. Time-based adapts to traffic changes.
 
 ## Configuration
 
-**Failure threshold:** Open after N failures (or N% failure rate). **Timeout:** How long to stay open before half-open. **Half-open requests:** How many to allow in half-open. **Sliding window:** Count failures in last N requests or last T seconds. More accurate than fixed count.
+- **Failure threshold:** Open after N failures (or N% failure rate).
+- **Timeout:** How long to stay open before half-open.
+- **Half-open requests:** How many to allow in half-open.
+- **Sliding window:** Count failures in last N requests or last T seconds. More accurate than fixed count.
 
 ## Benefits
 
-**Fail fast:** Don't waste resources on a failing dependency. **Recovery time:** Give dependency time to recover. **Backpressure:** Upstream gets quick failure. Can back off, use fallback.
+- **Fail fast:** Don't waste resources on a failing dependency.
+- **Recovery time:** Give dependency time to recover.
+- **Backpressure:** Upstream gets quick failure. Can back off, use fallback.
 
 ## Fallback
 
