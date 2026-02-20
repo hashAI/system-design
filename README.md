@@ -80,7 +80,7 @@ _This course is also available on my [website](https://karanpratapsingh.com/cour
   - [Netflix](#netflix)
   - [Uber](#uber)
 
-- **Chapter VI - Distributed Coordination & Consensus**
+- **Chapter VI**
 
   - [Leader Election](#leader-election)
   - [Distributed Consensus (Raft)](#distributed-consensus-raft)
@@ -88,7 +88,7 @@ _This course is also available on my [website](https://karanpratapsingh.com/cour
   - [Split Brain and Quorum](#split-brain-and-quorum)
   - [Coordination Services](#coordination-services)
 
-- **Chapter VII - Time, Ordering & Causality**
+- **Chapter VII**
 
   - [The Problem of Time in Distributed Systems](#the-problem-of-time-in-distributed-systems)
   - [Logical Clocks (Lamport Timestamps)](#logical-clocks-lamport-timestamps)
@@ -96,7 +96,7 @@ _This course is also available on my [website](https://karanpratapsingh.com/cour
   - [Hybrid Logical Clocks (HLC)](#hybrid-logical-clocks-hlc)
   - [TrueTime and Spanner](#truetime-and-spanner)
 
-- **Chapter VIII - Failure Detection & Membership**
+- **Chapter VIII**
 
   - [Failure Detection](#failure-detection)
   - [Gossip Protocol](#gossip-protocol)
@@ -104,7 +104,7 @@ _This course is also available on my [website](https://karanpratapsingh.com/cour
   - [Split Brain Prevention](#split-brain-prevention)
   - [Network Partitions in Practice](#network-partitions-in-practice)
 
-- **Chapter IX - Data Structures for Distributed Systems**
+- **Chapter IX**
 
   - [Bloom Filters](#bloom-filters)
   - [Count-Min Sketch](#count-min-sketch)
@@ -112,7 +112,7 @@ _This course is also available on my [website](https://karanpratapsingh.com/cour
   - [LSM Trees](#lsm-trees)
   - [Skip Lists](#skip-lists)
 
-- **Chapter X - Replication & Consistency Models**
+- **Chapter X**
 
   - [Replication Strategies Deep Dive](#replication-strategies-deep-dive)
   - [Read-Your-Writes and Session Consistency](#read-your-writes-and-session-consistency)
@@ -120,7 +120,7 @@ _This course is also available on my [website](https://karanpratapsingh.com/cour
   - [Linearizability](#linearizability)
   - [Conflict Resolution and CRDTs](#conflict-resolution-and-crdts)
 
-- **Chapter XI - Observability in Distributed Systems**
+- **Chapter XI**
 
   - [Distributed Tracing](#distributed-tracing)
   - [Metrics That Matter](#metrics-that-matter)
@@ -128,7 +128,7 @@ _This course is also available on my [website](https://karanpratapsingh.com/cour
   - [Structured Logging for Distributed Systems](#structured-logging-for-distributed-systems)
   - [Debugging Distributed Failures](#debugging-distributed-failures)
 
-- **Chapter XII - Resilience Patterns**
+- **Chapter XII**
 
   - [Idempotency](#idempotency)
   - [Retry and Exponential Backoff](#retry-and-exponential-backoff)
